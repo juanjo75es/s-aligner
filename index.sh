@@ -68,13 +68,48 @@ if ! test -f "$FILE"; then
     exit
 fi
 
-VAR2="false"
-is_fasta=$(python3 scripts/is_fasta.py $FILE)
+ORIGINAL_FILE=$FILE
 
-if [ "$is_fasta" = "$VAR2" ]; then
+if [ ${FILE: -3} == ".gz" ];
+then
+    NEWFILE="${FILE:0:-3}"
+    #echo "$NEWFILE"
+    gzip -dfqc $FILE > $NEWFILE
+    FILE=$NEWFILE
+fi
+
+if [ ${FILE: -3} == ".fq" ] || [ ${FILE: -6} == ".fastq" ];
+then
+    echo "Warning: Converting $FILE to FASTA. You can use your preferred method instead."
+    if [ ${FILE: -3} == ".fq" ]; then
+        NEWFILE="${FILE:0:-3}.fa"
+    else
+        NEWFILE="${FILE:0:-6}.fa"
+    fi
+    ./scripts/fq2fa.sh $FILE $NEWFILE
+    if [ $FILE == $ORIGINAL_FILE ];
+    then :
+    else 
+        rm $FILE # delete temporal .fq
+    fi
+    FILE=$NEWFILE
+fi
+
+
+if [ ${FILE: -3} == ".fa" ] || [ ${FILE: -6} == ".fasta" ];
+then :
+    #is_fasta=$(python3 scripts/is_fasta.py $FILE)
+
+    #VAR2="false"
+    #if [ "$is_fasta" = "$VAR2" ]; then
+    #    echo "Not a fasta file: $FILE."
+    #    exit
+    #fi
+else 
     echo "Not a fasta file: $FILE."
     exit
 fi
+
 
 if [ ! -d "./sequences/$1" ]; then
     mkdir ./sequences/$1
@@ -84,7 +119,7 @@ if [ ! -d "./bpp/$1" ]; then
 fi
 
 if [ "$COMPLETE" = true ]; then
-    cp -R $2 ./sequences/$1/_$SUB_ID.fa
+    cp -R $FILE ./sequences/$1/_$SUB_ID.fa
     python3 scripts/simplify_fasta.py -i ./sequences/$1/_$SUB_ID.fa -o ./sequences/$1/$SUB_ID.fa
     rm ./sequences/$1/_$SUB_ID.fa
     if [ "$REVERSE" = true ]; then
@@ -98,9 +133,13 @@ else
     if test -f "./sequences/$1/sra_data.part-01.fa"; then
         rm ./sequences/$1/sra_data.part-01.fa
     fi
-    python3 scripts/simplify_fasta.py -i $2 -o ./sequences/$1/sra_data.part-01.fa
+    python3 scripts/simplify_fasta.py -i $FILE -o ./sequences/$1/sra_data.part-01.fa
     #./scripts/fasta-subsample.pl ./sequences/$1/sra_data.part-01.fa $N_READS > ./sequences/$1/70.fa 
     awk '/^>/ {printf("\n%s\n",$0);next; } { printf("%s",$0);} END{printf("\n");}' < ./sequences/$ID/sra_data.part-01.fa | awk 'NR>1{ printf("%s",$0); n++;if(n%2==0) { printf("\n");} else { printf("\t");} }' |awk -v k=$N_READS 'BEGIN{srand(systime() + PROCINFO["pid"]);}{s=x++<k?x1:int(rand()*x);if(s<k)R[s]=$0}END{for(i in R)print R[i]}' |awk -F"\t" "{print \$1\"\\n\"\$2 > \"./sequences/$ID/70.fa\"}"
+    FILESIZE=$(stat -c%s "./sequences/$ID/70.fa")
+    if [ "$FILESIZE" -lt "100000" ]; then        
+        cp -f ./sequences/$1/sra_data.part-01.fa ./sequences/$1/70.fa
+    fi
     if [ "$REVERSE" = true ]; then
         revseq ./sequences/$1/70.fa ./sequences/$1/70r.fa > /dev/null 2>&1
         cat ./sequences/$1/70.fa ./sequences/$1/70r.fa > ./sequences/$1/sra_data.part-$SUB_ID.fa
@@ -111,4 +150,12 @@ else
     fi
     LD_LIBRARY_PATH=. ./saligner -name $1 -name2 $SUB_ID -multisequence -index $SILENCE
 fi
+
+rm ./sequences/$1/sra_data.part-01.fa
+if [ $FILE == $ORIGINAL_FILE ] 
+then :
+else
+    rm $FILE # delete temporal .fa
+fi 
+
 
