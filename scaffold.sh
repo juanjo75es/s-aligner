@@ -3,6 +3,9 @@
 SILENCE='-v'
 MODE='-assemble3'
 
+REMOVE='true'
+SELECT_IDS=''
+
 POSITIONAL=()
 while [[ $# -gt 0 ]]
 do
@@ -13,10 +16,19 @@ do
             SILENCE=''
             shift # past argument
             ;;
+        --noremove)
+            REMOVE='false'
+            shift # past argument
+            ;;
         -m|-mode)
             if [ "$2" = "4" ]; then
                 MODE="-assemble4"
             fi
+            shift # past argument
+            shift # past value
+            ;;
+        -select)
+            SELECT_IDS=$2
             shift # past argument
             shift # past value
             ;;
@@ -58,9 +70,25 @@ if [ "$is_fasta" = "$VAR2" ]; then
     exit
 fi
 
-python3 scripts/simplify_fasta.py -i $source -o sequences/scaffolding/sra_data.part-45.fa
-LD_LIBRARY_PATH=. ./saligner -name scaffolding -name2 45 -s 0 -p 6 -multisequence -index
-LD_LIBRARY_PATH=. ./saligner -name scaffolding -name2 45 -input ./sequences/scaffolding/sra_data.part-45.fa -s 0 -p 6 -n 20255 -multisequence $MODE $SILENCE $THREADS -depth 2000 > $source.scaffolds.$MODE.fa
+#rm sequences/scaffolding/sra_data.part-45.fa
 
-rm ./sequences/scaffolding/sra_data.part-45.fa
-rm -rf ./bpp/scaffolding
+if [[ ! "$SELECT_IDS" == ""  ]]; then
+    
+    python3 scripts/select_ids.py -i $source -o sequences/scaffolding/sra_data.3.fa -select $SELECT_IDS
+    
+    python3 scripts/reverse_complement.py sequences/scaffolding/sra_data.3.fa sequences/scaffolding/sra_data.fa    
+    #rm sequences/scaffolding/sra_data.3.fa
+else
+    cp $source sequences/scaffolding/sra_data.fa
+fi
+
+python3 scripts/simplify_fasta.py -i sequences/scaffolding/sra_data.fa -o sequences/scaffolding/sra_data.part-45.fa
+#rm sequences/scaffolding/sra_data.fa
+
+LD_LIBRARY_PATH=. ./saligner -name scaffolding -name2 45 -s 0 -p 6 -multisequence -index
+LD_LIBRARY_PATH=. ./saligner -name scaffolding -name2 45 -input ./sequences/scaffolding/sra_data.part-45.fa -s 0 -p 6 -n 20255 -multisequence $MODE $SILENCE $THREADS -emc 5000 -depth 5000 > $source.scaffolds.$MODE.fa
+
+if [[ "$REMOVE" == "true" ]]; then
+    rm ./sequences/scaffolding/sra_data.part-45.fa
+    rm -rf ./bpp/scaffolding
+fi

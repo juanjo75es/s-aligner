@@ -151,7 +151,9 @@ else
     LD_LIBRARY_PATH=. ./saligner -name $1 -name2 $SUB_ID -multisequence -index $SILENCE
 fi
 
-rm ./sequences/$1/sra_data.part-01.fa
+if test -f "./sequences/$1/sra_data.part-01.fa"; then
+    rm ./sequences/$1/sra_data.part-01.fa
+fi
 if [ $FILE == $ORIGINAL_FILE ] 
 then :
 else

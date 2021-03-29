@@ -2,6 +2,7 @@
 
 SILENCE='-v'
 THREADS='-t 1'
+SIMPLIFY='1'
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]
@@ -11,6 +12,10 @@ do
     case $key in
         -s|--silence)
             SILENCE=''
+            shift # past argument
+            ;;
+        --nosimplify)
+            SIMPLIFY='0'
             shift # past argument
             ;;
         -t|-threads)
@@ -69,7 +74,11 @@ if [ "$is_fasta" = "$VAR2" ]; then
     exit
 fi
 
-python3 scripts/simplify_fasta.py -i $source -o ./sequences/$1/66.fa
+if [ "$SIMPLIFY" = "1" ]; then
+    python3 scripts/simplify_fasta.py -i $source -o ./sequences/$1/66.fa
+else
+    cp $source ./sequences/$1/66.fa
+fi
 cp $reference sequences/$id/sra_data.part-33.fa
 LD_LIBRARY_PATH=. ./saligner -name $id -name2 33 -s 0 -p 6 -multisequence -index
 LD_LIBRARY_PATH=. ./saligner -name $id -name2 33 -input ./sequences/$1/66.fa -s 1 -p 6 -multisequence -assemble2 -n 50000 -emc 9999999 -em 3 $SILENCE $THREADS -depth $n -omode 3
